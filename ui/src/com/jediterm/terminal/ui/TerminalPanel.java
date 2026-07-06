@@ -3,6 +3,7 @@ package com.jediterm.terminal.ui;
 import com.jediterm.core.Color;
 import com.jediterm.core.TerminalCoordinates;
 import com.jediterm.core.compatibility.Point;
+import com.jediterm.core.input.MouseEventType;
 import com.jediterm.core.typeahead.TerminalTypeAheadManager;
 import com.jediterm.core.util.TermSize;
 import com.jediterm.terminal.*;
@@ -18,7 +19,6 @@ import com.jediterm.terminal.model.hyperlinks.LinkInfo;
 import com.jediterm.terminal.model.hyperlinks.TextProcessing;
 import com.jediterm.terminal.ui.hyperlinks.LinkInfoEx;
 import com.jediterm.terminal.ui.input.AwtMouseEvent;
-import com.jediterm.terminal.ui.input.AwtMouseWheelEvent;
 import com.jediterm.terminal.ui.settings.SettingsProvider;
 import com.jediterm.terminal.util.CharUtils;
 import kotlin.Pair;
@@ -1070,7 +1070,7 @@ public class TerminalPanel extends JComponent implements TerminalDisplay, Termin
       if (mySettingsProvider.enableMouseReporting() && isRemoteMouseAction(e)) {
         updateSelection(null);
         Point p = panelToCharCoords(e.getPoint());
-        listener.mouseWheelMoved(p.x, p.y, new AwtMouseWheelEvent(e));
+        listener.mouseWheelMoved(p.x, p.y, new AwtMouseEvent(e));
       }
       else if (myTerminalTextBuffer.isUsingAlternateBuffer() &&
         mySettingsProvider.simulateMouseScrollWithArrowKeysInAlternativeScreen() &&

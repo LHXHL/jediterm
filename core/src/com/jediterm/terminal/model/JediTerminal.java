@@ -5,7 +5,6 @@ import com.jediterm.core.Platform;
 import com.jediterm.core.TerminalCoordinates;
 import com.jediterm.core.compatibility.Point;
 import com.jediterm.core.input.MouseEvent;
-import com.jediterm.core.input.MouseWheelEvent;
 import com.jediterm.core.util.CellPosition;
 import com.jediterm.core.util.TermSize;
 import com.jediterm.terminal.*;
@@ -1028,7 +1027,7 @@ public class JediTerminal implements Terminal, TerminalMouseListener, TerminalCo
   }
 
   @Override
-  public void mouseWheelMoved(int x, int y, @NotNull MouseWheelEvent event) {
+  public void mouseWheelMoved(int x, int y, @NotNull MouseEvent event) {
     // mousePressed() handles mouse wheel using SCROLLDOWN and SCROLLUP buttons 
     mousePressed(x, y, event);
   }
