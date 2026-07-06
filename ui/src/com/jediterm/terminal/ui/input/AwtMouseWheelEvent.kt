@@ -9,7 +9,6 @@ class AwtMouseWheelEvent(
 ) : MouseWheelEvent(
   buttonCode = createButtonCode(awtMouseWheelEvent),
   modifierKeys = AwtMouseEvent.getModifierKeys(awtMouseWheelEvent),
-  rotation = awtMouseWheelEvent.wheelRotation,
   unitsToScroll = awtMouseWheelEvent.unitsToScroll,
 ) {
   override fun toString(): String = awtMouseWheelEvent.toString()

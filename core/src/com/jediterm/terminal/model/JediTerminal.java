@@ -3,8 +3,8 @@ package com.jediterm.terminal.model;
 import com.jediterm.core.Color;
 import com.jediterm.core.Platform;
 import com.jediterm.core.TerminalCoordinates;
-import com.jediterm.core.compatibility.Point;
 import com.jediterm.core.input.MouseEvent;
+import com.jediterm.core.input.MouseWheelEvent;
 import com.jediterm.core.util.CellPosition;
 import com.jediterm.core.util.TermSize;
 import com.jediterm.terminal.*;
@@ -24,7 +24,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.Charset;
 import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -72,7 +71,7 @@ public class JediTerminal implements Terminal, TerminalMouseListener, TerminalCo
   private TerminalOutputStream myTerminalOutput = null;
 
   private MouseMode myMouseMode = MouseMode.MOUSE_REPORTING_NONE;
-  private Point myLastMotionReport = null;
+  private final TerminalMouseEventEncoder myMouseEventEncoder = new TerminalMouseEventEncoder();
   private boolean myCursorYChanged;
 
   private final List<TerminalApplicationTitleListener> myApplicationTitleListeners = new CopyOnWriteArrayList<>();
@@ -891,145 +890,14 @@ public class JediTerminal implements Terminal, TerminalMouseListener, TerminalCo
     return myModes.contains(TerminalMode.AutoWrap);
   }
 
-  private byte[] mouseReport(int button, int x, int y) {
-    StringBuilder sb = new StringBuilder();
-    String charset = "UTF-8"; // extended mode requires UTF-8 encoding
-    switch (myMouseFormat) {
-      case MOUSE_FORMAT_XTERM_EXT:
-        sb.append(String.format("\033[M%c%c%c",
-                (char) (32 + button),
-                (char) (32 + x),
-                (char) (32 + y)));
-        break;
-      case MOUSE_FORMAT_URXVT:
-        sb.append(String.format("\033[%d;%d;%dM", 32 + button, x, y));
-        break;
-      case MOUSE_FORMAT_SGR:
-        if ((button & MouseButtonModifierFlags.MOUSE_BUTTON_SGR_RELEASE_FLAG) != 0) {
-          // for mouse release event
-          sb.append(String.format("\033[<%d;%d;%dm",
-                  button ^ MouseButtonModifierFlags.MOUSE_BUTTON_SGR_RELEASE_FLAG,
-                  x,
-                  y));
-        } else {
-          // for mouse press/motion event
-          sb.append(String.format("\033[<%d;%d;%dM", button, x, y));
-        }
-        break;
-      case MOUSE_FORMAT_XTERM:
-      default:
-        // X10 compatibility mode requires ASCII
-        // US-ASCII is only 7 bits, so we use ISO-8859-1 (8 bits with ASCII transparency)
-        // to handle positions greater than 95 (= 127-32)
-        charset = "ISO-8859-1";
-        sb.append(String.format("\033[M%c%c%c", (char) (32 + button), (char) (32 + x), (char) (32 + y)));
-        break;
-    }
-    LOG.debug(myMouseFormat + " (" + charset + ") report : " + button + ", " + x + "x" + y + " = " + sb);
-    return sb.toString().getBytes(Charset.forName(charset));
-  }
-
-  private boolean shouldSendMouseData(MouseMode... eligibleModes) {
-    if (myMouseMode == MouseMode.MOUSE_REPORTING_NONE || myTerminalOutput == null) {
-      return false;
-    }
-    if (myMouseMode == MouseMode.MOUSE_REPORTING_ALL_MOTION) {
+  @Override
+  public boolean onMouseEvent(int x, int y, @NotNull MouseEvent event, MouseEventProcessingSettings settings) {
+    byte[] mouseReport = myMouseEventEncoder.encode(event, x, y, myMouseMode, myMouseFormat, this, settings);
+    if (mouseReport != null && myTerminalOutput != null) {
+      myTerminalOutput.sendBytes(mouseReport, true);
       return true;
     }
-    for (MouseMode m : eligibleModes) {
-      if (myMouseMode == m) {
-        return true;
-      }
-    }
     return false;
-  }
-
-  @Override
-  public void mousePressed(int x, int y, @NotNull MouseEvent event) {
-    if (shouldSendMouseData(MouseMode.MOUSE_REPORTING_NORMAL, MouseMode.MOUSE_REPORTING_BUTTON_MOTION)) {
-      int cb = event.getButtonCode();
-
-      if (cb != MouseButtonCodes.NONE) {
-        if (cb == MouseButtonCodes.SCROLLDOWN || cb == MouseButtonCodes.SCROLLUP) {
-          // convert x11 scroll button number to terminal button code
-          int offset = MouseButtonCodes.SCROLLDOWN;
-          cb -= offset;
-          cb |= MouseButtonModifierFlags.MOUSE_BUTTON_SCROLL_FLAG;
-        }
-
-        cb |= event.getModifierKeys();
-
-        if (myTerminalOutput != null) {
-          myTerminalOutput.sendBytes(mouseReport(cb, x + 1, y + 1), true);
-        }
-      }
-    }
-  }
-
-  @Override
-  public void mouseReleased(int x, int y, @NotNull MouseEvent event) {
-    if (shouldSendMouseData(MouseMode.MOUSE_REPORTING_NORMAL, MouseMode.MOUSE_REPORTING_BUTTON_MOTION)) {
-      int cb = event.getButtonCode();
-
-      if (cb != MouseButtonCodes.NONE) {
-
-        if (myMouseFormat == MouseFormat.MOUSE_FORMAT_SGR) {
-          // for SGR 1006 mode
-          cb |= MouseButtonModifierFlags.MOUSE_BUTTON_SGR_RELEASE_FLAG;
-        } else {
-          // for 1000/1005/1015 mode
-          cb = MouseButtonCodes.RELEASE;
-        }
-
-        cb |= event.getModifierKeys();
-
-        if (myTerminalOutput != null) {
-          myTerminalOutput.sendBytes(mouseReport(cb, x + 1, y + 1), true);
-        }
-      }
-    }
-    myLastMotionReport = null;
-  }
-
-  @Override
-  public void mouseMoved(int x, int y, @NotNull MouseEvent event) {
-    if (myLastMotionReport != null && myLastMotionReport.equals(new Point(x, y))) {
-      return;
-    }
-    if (shouldSendMouseData(MouseMode.MOUSE_REPORTING_ALL_MOTION)) {
-      if (myTerminalOutput != null) {
-        myTerminalOutput.sendBytes(
-          mouseReport(MouseButtonCodes.RELEASE | MouseButtonModifierFlags.MOUSE_BUTTON_MOTION_FLAG, x + 1, y + 1), true
-        );
-      }
-    }
-    myLastMotionReport = new Point(x, y);
-  }
-
-  @Override
-  public void mouseDragged(int x, int y, @NotNull MouseEvent event) {
-    if (myLastMotionReport != null && myLastMotionReport.equals(new Point(x, y))) {
-      return;
-    }
-    if (shouldSendMouseData(MouseMode.MOUSE_REPORTING_BUTTON_MOTION)) {
-      //when dragging, button is not in "button", but in "modifier"
-      int cb = event.getButtonCode();
-
-      if (cb != MouseButtonCodes.NONE) {
-        cb |= MouseButtonModifierFlags.MOUSE_BUTTON_MOTION_FLAG;
-        cb |= event.getModifierKeys();
-        if (myTerminalOutput != null) {
-          myTerminalOutput.sendBytes(mouseReport(cb, x + 1, y + 1), true);
-        }
-      }
-    }
-    myLastMotionReport = new Point(x, y);
-  }
-
-  @Override
-  public void mouseWheelMoved(int x, int y, @NotNull MouseEvent event) {
-    // mousePressed() handles mouse wheel using SCROLLDOWN and SCROLLUP buttons 
-    mousePressed(x, y, event);
   }
 
   public void setTerminalOutput(TerminalOutputStream terminalOutput) {

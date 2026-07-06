@@ -3,7 +3,6 @@ package com.jediterm.terminal.ui;
 import com.jediterm.core.Color;
 import com.jediterm.core.TerminalCoordinates;
 import com.jediterm.core.compatibility.Point;
-import com.jediterm.core.input.MouseEventType;
 import com.jediterm.core.typeahead.TerminalTypeAheadManager;
 import com.jediterm.core.util.TermSize;
 import com.jediterm.terminal.*;
@@ -11,6 +10,7 @@ import com.jediterm.terminal.SubstringFinder.FindResult.FindItem;
 import com.jediterm.terminal.TextStyle.Option;
 import com.jediterm.terminal.emulator.ColorPalette;
 import com.jediterm.terminal.emulator.charset.CharacterSets;
+import com.jediterm.terminal.emulator.mouse.MouseEventProcessingSettings;
 import com.jediterm.terminal.emulator.mouse.MouseFormat;
 import com.jediterm.terminal.emulator.mouse.MouseMode;
 import com.jediterm.terminal.emulator.mouse.TerminalMouseListener;
@@ -19,6 +19,7 @@ import com.jediterm.terminal.model.hyperlinks.LinkInfo;
 import com.jediterm.terminal.model.hyperlinks.TextProcessing;
 import com.jediterm.terminal.ui.hyperlinks.LinkInfoEx;
 import com.jediterm.terminal.ui.input.AwtMouseEvent;
+import com.jediterm.terminal.ui.input.AwtMouseWheelEvent;
 import com.jediterm.terminal.ui.settings.SettingsProvider;
 import com.jediterm.terminal.util.CharUtils;
 import kotlin.Pair;
@@ -1051,69 +1052,44 @@ public class TerminalPanel extends JComponent implements TerminalDisplay, Termin
     addMouseListener(new MouseAdapter() {
       @Override
       public void mousePressed(MouseEvent e) {
-        if (mySettingsProvider.enableMouseReporting() && isRemoteMouseAction(e)) {
-          Point p = panelToCharCoords(e.getPoint());
-          listener.mousePressed(p.x, p.y, new AwtMouseEvent(e));
-        }
+        Point p = panelToCharCoords(e.getPoint());
+        listener.onMouseEvent(p.x, p.y, new AwtMouseEvent(e), createMouseEventProcessingSettings(e));
+
       }
 
       @Override
       public void mouseReleased(MouseEvent e) {
-        if (mySettingsProvider.enableMouseReporting() && isRemoteMouseAction(e)) {
-          Point p = panelToCharCoords(e.getPoint());
-          listener.mouseReleased(p.x, p.y, new AwtMouseEvent(e));
-        }
+        Point p = panelToCharCoords(e.getPoint());
+        listener.onMouseEvent(p.x, p.y, new AwtMouseEvent(e), createMouseEventProcessingSettings(e));
       }
     });
 
     addMouseWheelListener(e -> {
-      if (mySettingsProvider.enableMouseReporting() && isRemoteMouseAction(e)) {
-        updateSelection(null);
-        Point p = panelToCharCoords(e.getPoint());
-        listener.mouseWheelMoved(p.x, p.y, new AwtMouseEvent(e));
-      }
-      else if (myTerminalTextBuffer.isUsingAlternateBuffer() &&
-        mySettingsProvider.simulateMouseScrollWithArrowKeysInAlternativeScreen() &&
-        !e.isShiftDown() /* skip horizontal scrolls */
-      ) {
-        //Send Arrow keys instead
-        Integer key;
-        if (e.getWheelRotation() < 0) {
-          key = KeyEvent.VK_UP;
-        }
-        else if (e.getWheelRotation() > 0) {
-          key = KeyEvent.VK_DOWN;
-        }
-        else {
-          key = null;
-        }
-        if (key != null) {
-          byte[] arrowKeys = myTerminalStarter.getTerminal().getCodeForKey(key, 0);
-          for (int i = 0; i < Math.abs(e.getUnitsToScroll()); i++) {
-            myTerminalStarter.sendBytes(arrowKeys, false);
-          }
-          e.consume();
-        }
-      }
+      Point p = panelToCharCoords(e.getPoint());
+      if(listener.onMouseEvent(p.x, p.y, new AwtMouseWheelEvent(e), createMouseEventProcessingSettings(e))) e.consume();
+      if (mySettingsProvider.enableMouseReporting() && isRemoteMouseAction(e)) updateSelection(null);
     });
 
     addMouseMotionListener(new MouseMotionAdapter() {
       @Override
       public void mouseMoved(MouseEvent e) {
-        if (mySettingsProvider.enableMouseReporting() && isRemoteMouseAction(e)) {
-          Point p = panelToCharCoords(e.getPoint());
-          listener.mouseMoved(p.x, p.y, new AwtMouseEvent(e));
-        }
+        Point p = panelToCharCoords(e.getPoint());
+        listener.onMouseEvent(p.x, p.y, new AwtMouseEvent(e), createMouseEventProcessingSettings(e));
       }
 
       @Override
       public void mouseDragged(MouseEvent e) {
-        if (mySettingsProvider.enableMouseReporting() && isRemoteMouseAction(e)) {
-          Point p = panelToCharCoords(e.getPoint());
-          listener.mouseDragged(p.x, p.y, new AwtMouseEvent(e));
-        }
+        Point p = panelToCharCoords(e.getPoint());
+        listener.onMouseEvent(p.x, p.y, new AwtMouseEvent(e), createMouseEventProcessingSettings(e));
       }
     });
+  }
+  private MouseEventProcessingSettings createMouseEventProcessingSettings(MouseEvent e) {
+    return new MouseEventProcessingSettings(
+      mySettingsProvider.enableMouseReporting(),
+      myTerminalTextBuffer.isUsingAlternateBuffer(),
+      mySettingsProvider.simulateMouseScrollWithArrowKeysInAlternativeScreen()
+    );
   }
 
   @NotNull
