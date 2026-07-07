@@ -3,6 +3,7 @@ package com.jediterm.terminal.ui;
 import com.jediterm.core.Color;
 import com.jediterm.core.TerminalCoordinates;
 import com.jediterm.core.compatibility.Point;
+import com.jediterm.core.input.KeyInputEvent;
 import com.jediterm.core.typeahead.TerminalTypeAheadManager;
 import com.jediterm.core.util.TermSize;
 import com.jediterm.terminal.*;
@@ -11,6 +12,9 @@ import com.jediterm.terminal.TextStyle.Option;
 import com.jediterm.terminal.emulator.ColorPalette;
 import com.jediterm.terminal.emulator.charset.CharacterSets;
 import com.jediterm.terminal.emulator.mouse.MouseEventProcessingSettings;
+import com.jediterm.terminal.emulator.keyboard.KeyEventProcessingResult;
+import com.jediterm.terminal.emulator.keyboard.KeyEventProcessingSettings;
+import com.jediterm.terminal.emulator.keyboard.TerminalKeyEventProcessor;
 import com.jediterm.terminal.emulator.mouse.MouseFormat;
 import com.jediterm.terminal.emulator.mouse.MouseMode;
 import com.jediterm.terminal.emulator.mouse.TerminalMouseListener;
@@ -1831,137 +1835,6 @@ public class TerminalPanel extends JComponent implements TerminalDisplay, Termin
     myNextActionProvider = provider;
   }
 
-  private static final byte ASCII_NUL = 0;
-  private static final byte ASCII_ESC = 27;
-
-  private boolean processTerminalKeyPressed(KeyEvent e) {
-    if (hasUncommittedChars()) {
-      return false;
-    }
-
-    try {
-      final int keycode = e.getKeyCode();
-      final char keychar = e.getKeyChar();
-
-      // numLock does not change the code sent by keypad VK_DELETE
-      // although it send the char '.'
-      if (keycode == KeyEvent.VK_DELETE && keychar == '.') {
-        myTerminalStarter.sendBytes(new byte[]{'.'}, true);
-        return true;
-      }
-      // CTRL + Space is not handled in KeyEvent; handle it manually
-      if (keychar == ' ' && (e.getModifiersEx() & InputEvent.CTRL_DOWN_MASK) != 0) {
-        myTerminalStarter.sendBytes(new byte[]{ASCII_NUL}, true);
-        return true;
-      }
-
-      // Shift+Enter handling as Esc+CR.
-      if (mySettingsProvider.shiftEnterSendsEscCR() && keycode == KeyEvent.VK_ENTER && isShiftPressedOnly(e)) {
-        myTerminalStarter.sendBytes(new byte[]{ASCII_ESC, '\r'}, true);
-        return true;
-      }
-
-      final byte[] code = myTerminalStarter.getTerminal().getCodeForKey(keycode, e.getModifiers());
-      if (code != null) {
-        myTerminalStarter.sendBytes(code, true);
-        if (mySettingsProvider.scrollToBottomOnTyping() && isCodeThatScrolls(keycode)) {
-          scrollToBottom();
-        }
-        return true;
-      }
-      if (isAltPressedOnly(e) && Character.isDefined(keychar) && mySettingsProvider.altSendsEscape()) {
-        // Cannot use e.getKeyChar() on macOS:
-        //  Option+f produces e.getKeyChar()='ƒ' (402), but 'f' (102) is needed.
-        //  Option+b produces e.getKeyChar()='∫' (8747), but 'b' (98) is needed.
-        myTerminalStarter.sendString(new String(new char[]{ASCII_ESC, simpleMapKeyCodeToChar(e)}), true);
-        return true;
-      }
-      if (Character.isISOControl(keychar)) { // keys filtered out here will be processed in processTerminalKeyTyped
-        return processCharacter(e);
-      }
-    }
-    catch (Exception ex) {
-      LOG.error("Error sending pressed key to emulator", ex);
-    }
-    return false;
-  }
-
-  private static char simpleMapKeyCodeToChar(@NotNull KeyEvent e) {
-    // zsh requires proper case of letter
-    if ((e.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) != 0) {
-      return Character.toUpperCase((char) e.getKeyCode());
-    }
-    return Character.toLowerCase((char) e.getKeyCode());
-  }
-
-  private static boolean isAltPressedOnly(@NotNull KeyEvent e) {
-    int modifiersEx = e.getModifiersEx();
-    return (modifiersEx & InputEvent.ALT_DOWN_MASK) != 0 &&
-            (modifiersEx & InputEvent.ALT_GRAPH_DOWN_MASK) == 0 &&
-            (modifiersEx & InputEvent.CTRL_DOWN_MASK) == 0 &&
-            (modifiersEx & InputEvent.SHIFT_DOWN_MASK) == 0;
-  }
-
-  private static boolean isShiftPressedOnly(@NotNull KeyEvent e) {
-    int modifiersEx = e.getModifiersEx();
-    return (modifiersEx & InputEvent.SHIFT_DOWN_MASK) != 0 &&
-      (modifiersEx & InputEvent.ALT_DOWN_MASK) == 0 &&
-      (modifiersEx & InputEvent.ALT_GRAPH_DOWN_MASK) == 0 &&
-      (modifiersEx & InputEvent.CTRL_DOWN_MASK) == 0;
-  }
-
-  private boolean processCharacter(@NotNull KeyEvent e) {
-    if (isAltPressedOnly(e) && mySettingsProvider.altSendsEscape()) {
-      return false;
-    }
-    char keyChar = e.getKeyChar();
-    final char[] obuffer;
-    obuffer = new char[]{keyChar};
-
-    if (keyChar == '`' && (e.getModifiersEx() & InputEvent.META_DOWN_MASK) != 0) {
-      // Command + backtick is a short-cut on Mac OSX, so we shouldn't type anything
-      return false;
-    }
-
-    myTerminalStarter.sendString(new String(obuffer), true);
-
-    if (mySettingsProvider.scrollToBottomOnTyping()) {
-      scrollToBottom();
-    }
-    return true;
-  }
-
-  private static boolean isCodeThatScrolls(int keycode) {
-    return keycode == KeyEvent.VK_UP
-            || keycode == KeyEvent.VK_DOWN
-            || keycode == KeyEvent.VK_LEFT
-            || keycode == KeyEvent.VK_RIGHT
-            || keycode == KeyEvent.VK_BACK_SPACE
-            || keycode == KeyEvent.VK_INSERT
-            || keycode == KeyEvent.VK_DELETE
-            || keycode == KeyEvent.VK_ENTER
-            || keycode == KeyEvent.VK_HOME
-            || keycode == KeyEvent.VK_END
-            || keycode == KeyEvent.VK_PAGE_UP
-            || keycode == KeyEvent.VK_PAGE_DOWN;
-  }
-
-  private boolean processTerminalKeyTyped(KeyEvent e) {
-    if (hasUncommittedChars()) {
-      return false;
-    }
-
-    if (!Character.isISOControl(e.getKeyChar())) { // keys filtered out here will be processed in processTerminalKeyPressed
-      try {
-        return processCharacter(e);
-      }
-      catch (Exception ex) {
-        LOG.error("Error sending typed key to emulator", ex);
-      }
-    }
-    return false;
-  }
-
   private class TerminalKeyHandler extends KeyAdapter {
 
     private boolean myIgnoreNextKeyTypedEvent;
@@ -1974,9 +1847,9 @@ public class TerminalPanel extends JComponent implements TerminalDisplay, Termin
         return;
       }
       myIgnoreNextKeyTypedEvent = false;
-      if (TerminalAction.processEvent(TerminalPanel.this, e) || processTerminalKeyPressed(e)) {
-        e.consume();
+      if (TerminalAction.processEvent(TerminalPanel.this, e) || processTerminalKeyEvent(e)) {
         myIgnoreNextKeyTypedEvent = true;
+        e.consume();
       }
     }
 
@@ -1984,9 +1857,51 @@ public class TerminalPanel extends JComponent implements TerminalDisplay, Termin
       if (e.isConsumed()) {
         return;
       }
-      if (myIgnoreNextKeyTypedEvent || processTerminalKeyTyped(e)) {
+      if (myIgnoreNextKeyTypedEvent || processTerminalKeyEvent(e)) {
         e.consume();
       }
+    }
+
+    private boolean processTerminalKeyEvent(KeyEvent e) {
+      if (hasUncommittedChars()) {
+        return false;
+      }
+      KeyInputEvent.Type type;
+      switch (e.getID()) {
+        case KeyEvent.KEY_PRESSED:
+          type = KeyInputEvent.Type.PRESSED;
+          break;
+        case KeyEvent.KEY_TYPED:
+          type = KeyInputEvent.Type.TYPED;
+          break;
+        default:
+          return false;
+      }
+
+      KeyInputEvent event = new KeyInputEvent(type, e.getKeyCode(), e.getKeyChar(), e.getModifiersEx());
+      KeyEventProcessingSettings settings = new KeyEventProcessingSettings(
+        mySettingsProvider.shiftEnterSendsEscCR(),
+        mySettingsProvider.scrollToBottomOnTyping(),
+        mySettingsProvider.altSendsEscape()
+      );
+      return processKeyProcessorResult(TerminalKeyEventProcessor.processKey(event, myTerminalStarter.getTerminal(), settings));
+    }
+
+    private boolean processKeyProcessorResult(KeyEventProcessingResult result) {
+      boolean isConsumed = false;
+      if (result instanceof KeyEventProcessingResult.Unhandled) return false;
+      if (result instanceof KeyEventProcessingResult.StringResult) {
+        String command = ((KeyEventProcessingResult.StringResult) result).getString();
+        myTerminalStarter.sendString(command, true);
+        isConsumed = true;
+      }
+      if (result instanceof KeyEventProcessingResult.BytesResult) {
+        byte[] bytes = ((KeyEventProcessingResult.BytesResult) result).getBytes();
+        myTerminalStarter.sendBytes(bytes, true);
+        isConsumed = true;
+      }
+      if (result.getShouldScrollToBottom()) scrollToBottom();
+      return isConsumed;
     }
   }
 
