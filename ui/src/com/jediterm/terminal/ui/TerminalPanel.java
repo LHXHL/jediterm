@@ -1884,7 +1884,13 @@ public class TerminalPanel extends JComponent implements TerminalDisplay, Termin
         mySettingsProvider.scrollToBottomOnTyping(),
         mySettingsProvider.altSendsEscape()
       );
-      return processKeyProcessorResult(TerminalKeyEventProcessor.processKey(event, myTerminalStarter.getTerminal(), settings));
+      try {
+        return processKeyProcessorResult(TerminalKeyEventProcessor.processKey(event, myTerminalStarter.getTerminal(), settings));
+      }
+      catch (Exception ex) {
+        LOG.error("Error processing terminal key event", ex);
+        return false;
+      }
     }
 
     private boolean processKeyProcessorResult(KeyEventProcessingResult result) {
