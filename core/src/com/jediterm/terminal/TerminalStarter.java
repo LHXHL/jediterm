@@ -114,11 +114,12 @@ public class TerminalStarter implements TerminalOutputStream {
   }
 
   /**
-   * @deprecated use {@link JediTerminal#getCodeForKey(int, int)} instead
+   * @deprecated use {@link JediTerminal#getCodeForKey(int, int)} with extended modifiers from
+   * {@link java.awt.event.InputEvent#getModifiersEx()} instead
    */
   @Deprecated
-  public byte[] getCode(final int key, final int modifiers) {
-    return myTerminal.getCodeForKey(key, modifiers);
+  public byte[] getCode(final int key, final int modifiersEx) {
+    return myTerminal.getCodeForKey(key, modifiersEx);
   }
 
   public void postResize(@NotNull TermSize termSize, @NotNull RequestOrigin origin) {

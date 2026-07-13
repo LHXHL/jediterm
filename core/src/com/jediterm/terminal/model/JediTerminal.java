@@ -456,8 +456,8 @@ public class JediTerminal implements Terminal, TerminalMouseListener, TerminalCo
   }
 
   @Override
-  public byte[] getCodeForKey(int key, int modifiers) {
-    return myTerminalKeyEncoder.getCode(key, modifiers);
+  public byte[] getCodeForKey(int key, int modifiersEx) {
+    return myTerminalKeyEncoder.getCode(key, modifiersEx);
   }
 
   @Override

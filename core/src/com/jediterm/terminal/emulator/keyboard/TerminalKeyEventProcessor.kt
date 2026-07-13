@@ -54,7 +54,7 @@ object TerminalKeyEventProcessor {
       return KeyEventProcessingResult.BytesResult(byteArrayOf(ASCII_ESC, '\r'.code.toByte()), false)
     }
 
-    val code = terminal.getCodeForKey(keyCode, event.modifiers)
+    val code = terminal.getCodeForKey(keyCode, event.modifiersEx)
     if (code != null) {
       val shouldScrollToBottom = settings.scrollToBottomOnTyping && isCodeThatScrolls(keyCode)
       return KeyEventProcessingResult.BytesResult(code, shouldScrollToBottom)

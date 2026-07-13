@@ -57,12 +57,12 @@ public class TerminalKeyEncoder {
     putCode(VK_HOME, ESC, '[', 'H');
     putCode(VK_END, ESC, '[', 'F');
 
-    putCode(new KeyCodeAndModifier(VK_TAB, InputEvent.SHIFT_MASK), ESC, '[', 'Z');
+    putCode(new KeyCodeAndModifier(VK_TAB, InputEvent.SHIFT_DOWN_MASK), ESC, '[', 'Z');
 
-    putCode(new KeyCodeAndModifier(VK_BACK_SPACE, InputEvent.CTRL_MASK), VK_BACK_SPACE);
+    putCode(new KeyCodeAndModifier(VK_BACK_SPACE, InputEvent.CTRL_DOWN_MASK), VK_BACK_SPACE);
     if (Platform.isMacOS()) {
-      putCode(new KeyCodeAndModifier(VK_LEFT, InputEvent.META_MASK), Ascii.SOH);
-      putCode(new KeyCodeAndModifier(VK_RIGHT, InputEvent.META_MASK), Ascii.ENQ);
+      putCode(new KeyCodeAndModifier(VK_LEFT, InputEvent.META_DOWN_MASK), Ascii.SOH);
+      putCode(new KeyCodeAndModifier(VK_RIGHT, InputEvent.META_DOWN_MASK), Ascii.ENQ);
     }
   }
 
@@ -82,14 +82,14 @@ public class TerminalKeyEncoder {
 
   private void configureLeftRight() {
     if (myPlatform == Platform.macOS) {
-      putCode(new KeyCodeAndModifier(VK_RIGHT, InputEvent.ALT_MASK), ESC, 'f'); // ^[f
-      putCode(new KeyCodeAndModifier(VK_LEFT, InputEvent.ALT_MASK), ESC, 'b'); // ^[b
+      putCode(new KeyCodeAndModifier(VK_RIGHT, InputEvent.ALT_DOWN_MASK), ESC, 'f'); // ^[f
+      putCode(new KeyCodeAndModifier(VK_LEFT, InputEvent.ALT_DOWN_MASK), ESC, 'b'); // ^[b
     }
     else {
-      putCode(new KeyCodeAndModifier(VK_LEFT, InputEvent.CTRL_MASK), ESC, '[',  '1', ';', '5', 'D'); // ^[[1;5D
-      putCode(new KeyCodeAndModifier(VK_RIGHT, InputEvent.CTRL_MASK), ESC, '[',  '1', ';', '5', 'C'); // ^[[1;5C
-      putCode(new KeyCodeAndModifier(VK_LEFT, InputEvent.ALT_MASK), ESC, '[',  '1', ';', '3', 'D'); // ^[[1;3D
-      putCode(new KeyCodeAndModifier(VK_RIGHT, InputEvent.ALT_MASK), ESC, '[',  '1', ';', '3', 'C'); // ^[[1;3C
+      putCode(new KeyCodeAndModifier(VK_LEFT, InputEvent.CTRL_DOWN_MASK), ESC, '[',  '1', ';', '5', 'D'); // ^[[1;5D
+      putCode(new KeyCodeAndModifier(VK_RIGHT, InputEvent.CTRL_DOWN_MASK), ESC, '[',  '1', ';', '5', 'C'); // ^[[1;5C
+      putCode(new KeyCodeAndModifier(VK_LEFT, InputEvent.ALT_DOWN_MASK), ESC, '[',  '1', ';', '3', 'D'); // ^[[1;3D
+      putCode(new KeyCodeAndModifier(VK_RIGHT, InputEvent.ALT_DOWN_MASK), ESC, '[',  '1', ';', '3', 'C'); // ^[[1;3C
     }
   }
 
@@ -121,8 +121,8 @@ public class TerminalKeyEncoder {
     myKeyCodes.put(key, CharUtils.makeCode(bytesAsInt));
   }
 
-  public byte[] getCode(final int key, int modifiers) {
-    byte[] bytes = myKeyCodes.get(new KeyCodeAndModifier(key, modifiers));
+  public byte[] getCode(final int key, int modifiersEx) {
+    byte[] bytes = myKeyCodes.get(new KeyCodeAndModifier(key, modifiersEx));
     if (bytes != null) {
       return bytes;
     }
@@ -131,16 +131,16 @@ public class TerminalKeyEncoder {
       return null;
     }
 
-    if ((myAltSendsEscape || alwaysSendEsc(key)) && (modifiers & InputEvent.ALT_MASK) != 0) {
+    if ((myAltSendsEscape || alwaysSendEsc(key)) && (modifiersEx & InputEvent.ALT_DOWN_MASK) != 0) {
       return insertCodeAt(bytes, CharUtils.makeCode(ESC), 0);
     }
 
-    if ((myMetaSendsEscape || alwaysSendEsc(key)) && (modifiers & InputEvent.META_MASK) != 0) {
+    if ((myMetaSendsEscape || alwaysSendEsc(key)) && (modifiersEx & InputEvent.META_DOWN_MASK) != 0) {
       return insertCodeAt(bytes, CharUtils.makeCode(ESC), 0);
     }
 
     if (isCursorKey(key) || isFunctionKey(key)) {
-      return getCodeWithModifiers(bytes, modifiers);
+      return getCodeWithModifiers(bytes, modifiersEx);
     }
 
     return bytes;
@@ -161,8 +161,8 @@ public class TerminalKeyEncoder {
   /**
    * Refer to section PC-Style Function Keys in http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
    */
-  private byte[] getCodeWithModifiers(byte[] bytes, int modifiers) {
-    int code = modifiersToCode(modifiers);
+  private byte[] getCodeWithModifiers(byte[] bytes, int modifiersEx) {
+    int code = modifiersToCode(modifiersEx);
 
     if (code > 0 && bytes.length > 2) {
       // SS3 needs to become CSI.
@@ -203,21 +203,21 @@ public class TerminalKeyEncoder {
    15    | Meta + Ctrl + Alt
    16    | Meta + Ctrl + Alt + Shift
    ------+--------------------------
-   * @param modifiers
+   * @param modifiersEx extended modifiers
    * @return
    */
-  private static int modifiersToCode(int modifiers) {
+  private static int modifiersToCode(int modifiersEx) {
     int code = 0;
-    if ((modifiers & InputEvent.SHIFT_MASK) != 0) {
+    if ((modifiersEx & InputEvent.SHIFT_DOWN_MASK) != 0) {
       code |= 1;
     }
-    if ((modifiers & InputEvent.ALT_MASK) != 0) {
+    if ((modifiersEx & InputEvent.ALT_DOWN_MASK) != 0) {
       code |= 2;
     }
-    if ((modifiers & InputEvent.CTRL_MASK) != 0) {
+    if ((modifiersEx & InputEvent.CTRL_DOWN_MASK) != 0) {
       code |= 4;
     }
-    if ((modifiers & InputEvent.META_MASK) != 0) {
+    if ((modifiersEx & InputEvent.META_DOWN_MASK) != 0) {
       code |= 8;
     }
     return code != 0? code + 1: code;

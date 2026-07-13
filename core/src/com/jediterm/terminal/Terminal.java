@@ -124,7 +124,7 @@ public interface Terminal {
 
   void useAlternateBuffer(boolean enabled);
 
-  byte[] getCodeForKey(int key, int modifiers);
+  byte[] getCodeForKey(int key, int modifiersEx);
 
   void setApplicationArrowKeys(boolean enabled);
 
