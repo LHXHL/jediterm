@@ -714,7 +714,7 @@ class TerminalMouseEventEncoderTest {
     )
 
     assertArrayEquals(
-      repeatBytes(terminal.getCodeForKey(KeyEvent.VK_UP, 0), 3),
+      repeatBytes(terminal.getCodeForKey(KeyEvent.VK_DOWN, 0), 3),
       TerminalMouseEventEncoder().encode(
         MouseWheelEvent(
           buttonCode = MouseButtonCodes.SCROLLUP,
@@ -730,7 +730,7 @@ class TerminalMouseEventEncoderTest {
       ),
     )
     assertArrayEquals(
-      repeatBytes(terminal.getCodeForKey(KeyEvent.VK_DOWN, 0), 2),
+      repeatBytes(terminal.getCodeForKey(KeyEvent.VK_UP, 0), 2),
       TerminalMouseEventEncoder().encode(
         MouseWheelEvent(
           buttonCode = MouseButtonCodes.SCROLLDOWN,

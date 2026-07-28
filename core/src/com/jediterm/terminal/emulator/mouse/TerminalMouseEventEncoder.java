@@ -236,10 +236,10 @@ public final class TerminalMouseEventEncoder {
       //Send Arrow keys instead
       Integer key;
       if (event.getButtonCode() == MouseButtonCodes.SCROLLUP) {
-        key = KeyEvent.VK_UP;
+        key = KeyEvent.VK_DOWN;
       }
       else if (event.getButtonCode() == MouseButtonCodes.SCROLLDOWN) {
-        key = KeyEvent.VK_DOWN;
+        key = KeyEvent.VK_UP;
       }
       else {
         key = null;
