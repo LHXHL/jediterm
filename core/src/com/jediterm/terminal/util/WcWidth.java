@@ -1,7 +1,5 @@
 package com.jediterm.terminal.util;
 
-import java.util.stream.Stream;
-
 import static java.lang.String.format;
 
 /**
@@ -41,6 +39,11 @@ class WcWidth {
         UNASSIGNED(0, UNASSIGNED_TABLE),                        // The character is unassigned.
         WIDENED_IN_9(2, WIDENED_IN_9_TABLE);                    // Width is 1 in Unicode 8, 2 in Unicode 9+.
 
+        /**
+         * values() clones its backing array on every call. Cache it once since `of()` runs on every rendered character.
+         */
+        private static final Type[] VALUES = values();
+
         private final int defaultWidth;
         private final int[][][] tables;
 
@@ -54,10 +57,15 @@ class WcWidth {
         }
 
         private boolean contains(int c) {
-            return Stream.of(tables).anyMatch(table -> contains(c, table));
+            for (int[][] table : tables) {
+                if (contains(c, table)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
-        private boolean contains(int c, int[][] table) {
+        private static boolean contains(int c, int[][] table) {
             var min = 0;
             var max = table.length - 1;
 
@@ -80,15 +88,20 @@ class WcWidth {
             return false;
         }
 
+        /**
+         * Very hot code: it must have no allocations and be as fast as possible.
+         */
         public static Type of(int c) {
             if (c < 0 || c > 0x10FFFF) {
                 throw new IllegalArgumentException(format("'0x%X' is not a Unicode code point", c));
             }
 
-            return Stream.of(Type.values())
-                    .filter(type -> type.contains(c))
-                    .findFirst()
-                    .orElse(ONE);
+            for (Type type : VALUES) {
+                if (type.contains(c)) {
+                    return type;
+                }
+            }
+            return ONE;
         }
 
     }
