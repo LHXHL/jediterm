@@ -719,8 +719,10 @@ public class JediEmulator extends DataStreamIteratingEmulator {
           setModeEnabled(TerminalMode.BracketedPasteMode, enabled);
           return true;
         case 2026:
-          SynchronizedOutput syncOutput = new SynchronizedOutput(myDataStream, myTerminal);
-          syncOutput.await();
+          if (enabled) {
+            SynchronizedOutput syncOutput = new SynchronizedOutput(myDataStream, myTerminal);
+            syncOutput.await();
+          }
           return true;
         case 9001:
           // suppress warnings about `win32-input-mode`

@@ -66,8 +66,22 @@ class SynchronizedOutputTest : TestCase() {
 
   fun testNoEndSequenceBeforeFinish() {
     val session = TestSession(20, 5)
-    session.process("Foo" + BEGIN_SYNC_OUTPUT + "Bar")
-    assertScreenLines(session, listOf("FooBar"))
+    session.processAsync("Foo" + BEGIN_SYNC_OUTPUT + "Bar") {
+      assertScreenLines(session, listOf("Foo"))
+    }
+    session.terminalTextBuffer.modify {
+      assertScreenLines(session, listOf("FooBar"))
+    }
+  }
+
+  /**
+   * Homebrew emits `CSI ? 2026 l` (end sync block) before output.
+   */
+  fun testEndSequenceAtStart() {
+    val session = TestSession(80, 5)
+    session.processAsync(END_SYNC_OUTPUT + "foo") {
+      assertScreenLines(session, listOf("foo"))
+    }
   }
 
   private fun assertScreenLines(session: TestSession, expectedScreenLines: List<String>) {
